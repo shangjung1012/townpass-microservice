@@ -1,0 +1,51 @@
+name: Deploy Frontend to Firebase Hosting
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+defaults:
+  run:
+    working-directory: frontend
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enable corepack & install
+        run: |
+          corepack enable
+          pnpm -v || npm i -g pnpm
+          pnpm install --frozen-lockfile
+
+      - name: Create .env.production
+        run: echo "VITE_API_BASE=${{ secrets.FRONTEND_API_BASE }}" > .env.production
+
+      - name: Build
+        run: pnpm build
+
+      - name: Firebase Deploy (live)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SA }}
+          projectId: ${{ secrets.PROJECT_ID }}
+          channelId: live
