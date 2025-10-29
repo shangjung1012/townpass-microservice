@@ -9,6 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini .
 
-# Cloud Run 會注入 $PORT；本機 compose 我們會覆寫成 8000
 CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
