@@ -61,7 +61,7 @@ jobs:
           --region ${{ secrets.REGION }}
           --set-cloudsql-instances "${{ secrets.INSTANCE_CONNECTION_NAME }}"
           --set-env-vars DATABASE_URL=${{ steps.dburl.outputs.DATABASE_URL }},PYTHONUNBUFFERED=1,PYTHONPATH=/app
-          --service-account github-deployer@${{ secrets.PROJECT_ID }}.iam.gserviceaccount.com \
+          --service-account github-deployer@${{ secrets.PROJECT_ID }}.iam.gserviceaccount.com
           --command=bash
           --args=-lc
           --args="cd /app && python -m alembic -c alembic.ini upgrade head"
