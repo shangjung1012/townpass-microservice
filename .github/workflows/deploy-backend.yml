@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,20 +54,17 @@ jobs:
           echo "DATABASE_URL=postgresql+psycopg://${DB_USER}:${URL_ENC_PASS}@/${DB_NAME}?host=/cloudsql/${ICN}" >> "$GITHUB_OUTPUT"
       
       # Deploy DB Migration Job
-      - name: Deploy DB Migration Job (alembic upgrade head)
-        run: |
-          gcloud run jobs deploy fastapi-db-migrate \
-            --image ${{ env.AR_REPO_PATH }}:${{ github.sha }} \
-            --region ${{ secrets.REGION }} \
-            --set-cloudsql-instances "${{ secrets.INSTANCE_CONNECTION_NAME }}" \
-            --set-env-vars "DATABASE_URL=${{ steps.dburl.outputs.DATABASE_URL }},PYTHONUNBUFFERED=1,PYTHONPATH=/app" \
-            --command bash \
-            --args -lc \
-            --args "python -m alembic -c alembic.ini upgrade head" \
-            --max-retries 1 \
-            --memory 512Mi \
-            --cpu 1 \
-            --task-timeout 900s
+      - name: Deploy DB Migration Job
+        run: >
+          gcloud run jobs deploy fastapi-db-migrate
+          --image ${{ env.AR_REPO_PATH }}:${{ github.sha }}
+          --region ${{ secrets.REGION }}
+          --set-cloudsql-instances "${{ secrets.INSTANCE_CONNECTION_NAME }}"
+          --set-env-vars DATABASE_URL=${{ steps.dburl.outputs.DATABASE_URL }},PYTHONUNBUFFERED=1,PYTHONPATH=/app
+          --command=bash
+          --args=-lc
+          --args="cd /app && python -m alembic -c alembic.ini upgrade head"
+          --max-retries=1 --memory=512Mi --cpu=1 --task-timeout=900s
 
       - name: Run DB Migration Job (execute & print logs)
         env:
