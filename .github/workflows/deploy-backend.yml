@@ -69,9 +69,19 @@ jobs:
 
       - name: Run DB Migration Job
         run: |
+          set +e
           gcloud run jobs execute fastapi-db-migrate \
             --region ${{ secrets.REGION }} --wait
+          EXIT_CODE=$?
+          echo "Job exit code: ${EXIT_CODE}"
 
+          echo "---- Recent Job Logs ----"
+          gcloud logging read \
+            'resource.type="run_job" AND resource.labels.job_name="fastapi-db-migrate"' \
+            --limit=200 --format='value(textPayload)' || true
+
+          exit ${EXIT_CODE}
+          
       # Deploy to Cloud Run
       - name: Deploy
         env:
