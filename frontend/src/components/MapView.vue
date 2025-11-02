@@ -6,7 +6,10 @@ import MapPopup from './map/MapPopup.vue'
 
 const mapEl = ref(null)
 let map = null
-let watchId = null
+
+// ====== Flutter 互動相關 ======
+let pollTimer = null                 // 輪詢向 Flutter 要位置
+let flutterMsgHandler = null         // 接收 Flutter 回覆的 handler
 
 // Datasets
 const datasets = ref([
@@ -122,7 +125,7 @@ function fitToVisibleDatasets() {
   if (!combined.isEmpty()) map.fitBounds(combined, { padding: 40, duration: 500 })
 }
 
-// 使用者定位
+// ===== 使用者定位（只吃 Flutter 提供）=====
 function ensureUserLayer() {
   if (!map.getSource('user-location')) {
     map.addSource('user-location', {
@@ -156,25 +159,49 @@ function updateUserLocation(lon, lat) {
   map.flyTo({ center: [lon, lat], zoom: 15 })
 }
 
-function startAutoLocate() {
-  if (!('geolocation' in navigator)) {
-    console.warn('Geolocation not supported')
-    return
+function handleIncomingMessage(raw) {
+  try {
+    const msg = typeof raw === 'string' ? JSON.parse(raw) : raw
+    const payload = msg?.data ?? msg
+    const name = msg?.name ?? null
+    if (name === 'location' && payload) {
+      const lat = payload.latitude ?? payload.lat ?? payload.coords?.latitude
+      const lon = payload.longitude ?? payload.lng ?? payload.lon ?? payload.coords?.longitude
+      if (typeof lat === 'number' && typeof lon === 'number') {
+        updateUserLocation(lon, lat)
+      }
+    }
+  } catch (err) {
+    console.warn('Invalid location message', err)
   }
-  watchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const lon = pos.coords.longitude
-      const lat = pos.coords.latitude
-      updateUserLocation(lon, lat)
-    },
-    (err) => console.warn('GPS error:', err),
-    { enableHighAccuracy: true, maximumAge: 10000 }
-  )
+}
+
+// 定期向 Flutter 要位置（TownPass 已有 handler：name='location'）
+function requestLocationFromFlutter() {
+  try {
+    const payload = JSON.stringify({ name: 'location' })
+    if (window.flutterObject?.postMessage) {
+      window.flutterObject.postMessage(payload)
+      return true
+    }
+  } catch (_) {}
+  return false
+}
+
+function startPollingFlutter(intervalMs = 2000) {
+  // 先要一次
+  requestLocationFromFlutter()
+  // 之後定期要
+  pollTimer = setInterval(requestLocationFromFlutter, intervalMs)
 }
 
 onMounted(() => {
   const token = import.meta.env.VITE_MAPBOXTOKEN
   const styleUrl = 'mapbox://styles/mapbox/streets-v12'
+  if (!token) {
+    console.warn('VITE_MAPBOXTOKEN is missing')
+    return
+  }
   mapboxgl.accessToken = token
 
   map = new mapboxgl.Map({
@@ -190,12 +217,32 @@ onMounted(() => {
     for (const ds of datasets.value) await ensureDatasetLoaded(ds)
     fitToVisibleDatasets()
     ensureUserLayer()
-    startAutoLocate()  // 啟動自動定位與跟隨
+
+    // 註冊接收（盡量相容）
+    window.receiveLocationFromFlutter = (msg) => handleIncomingMessage(msg)
+    if (window.flutterObject && typeof window.flutterObject.addEventListener === 'function') {
+      flutterMsgHandler = (e) => handleIncomingMessage(e?.data ?? e)
+      try { window.flutterObject.addEventListener('message', flutterMsgHandler) } catch (_) {}
+    } else {
+      flutterMsgHandler = (e) => handleIncomingMessage(e?.data ?? e)
+      window.addEventListener('message', flutterMsgHandler)
+    }
+
+    // 僅用 Flutter 提供位置：啟動輪詢要求
+    startPollingFlutter(2000)
   })
 })
 
 onBeforeUnmount(() => {
-  if (watchId) navigator.geolocation.clearWatch(watchId)
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  if (flutterMsgHandler) {
+    if (window.flutterObject && typeof window.flutterObject.removeEventListener === 'function') {
+      try { window.flutterObject.removeEventListener('message', flutterMsgHandler) } catch (_) {}
+    } else {
+      window.removeEventListener('message', flutterMsgHandler)
+    }
+  }
+  try { delete window.receiveLocationFromFlutter } catch (_) {}
   if (map) map.remove()
 })
 </script>
