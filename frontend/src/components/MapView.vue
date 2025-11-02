@@ -6,8 +6,9 @@ import MapPopup from './map/MapPopup.vue'
 
 const mapEl = ref(null)
 let map = null
+let watchId = null
 
-// Datasets to toggle
+// Datasets
 const datasets = ref([
   { id: 'accessibility', name: '無障礙據點', url: '/mapData/accessibility_new_tpe.geojson', color: '#10b981', outline: '#064e3b', visible: true },
   { id: 'attraction', name: '景點', url: '/mapData/attraction_tpe.geojson', color: '#f59e0b', outline: '#92400e', visible: false },
@@ -56,19 +57,48 @@ async function ensureDatasetLoaded(ds) {
   const layerIds = []
   if (geomType.includes('Point')) {
     const lid = `${ds.id}-points`
-    map.addLayer({ id: lid, type: 'circle', source: sourceId, paint: { 'circle-radius': 6, 'circle-color': ds.color || '#3b82f6', 'circle-stroke-width': 1, 'circle-stroke-color': ds.outline || '#1d4ed8' }, layout: { visibility: ds.visible ? 'visible' : 'none' } })
+    map.addLayer({
+      id: lid,
+      type: 'circle',
+      source: sourceId,
+      paint: {
+        'circle-radius': 6,
+        'circle-color': ds.color,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': ds.outline
+      },
+      layout: { visibility: ds.visible ? 'visible' : 'none' }
+    })
     layerIds.push(lid)
     attachPopupInteraction(lid)
   } else if (geomType.includes('Line')) {
     const lid = `${ds.id}-lines`
-    map.addLayer({ id: lid, type: 'line', source: sourceId, paint: { 'line-color': ds.color || '#0ea5e9', 'line-width': 2 }, layout: { visibility: ds.visible ? 'visible' : 'none' } })
+    map.addLayer({
+      id: lid,
+      type: 'line',
+      source: sourceId,
+      paint: { 'line-color': ds.color, 'line-width': 2 },
+      layout: { visibility: ds.visible ? 'visible' : 'none' }
+    })
     layerIds.push(lid)
     attachPopupInteraction(lid)
   } else {
     const fillId = `${ds.id}-fill`
     const outlineId = `${ds.id}-outline`
-    map.addLayer({ id: fillId, type: 'fill', source: sourceId, paint: { 'fill-color': ds.color || '#3b82f6', 'fill-opacity': 0.2 }, layout: { visibility: ds.visible ? 'visible' : 'none' } })
-    map.addLayer({ id: outlineId, type: 'line', source: sourceId, paint: { 'line-color': ds.outline || '#1d4ed8', 'line-width': 1 }, layout: { visibility: ds.visible ? 'visible' : 'none' } })
+    map.addLayer({
+      id: fillId,
+      type: 'fill',
+      source: sourceId,
+      paint: { 'fill-color': ds.color, 'fill-opacity': 0.2 },
+      layout: { visibility: ds.visible ? 'visible' : 'none' }
+    })
+    map.addLayer({
+      id: outlineId,
+      type: 'line',
+      source: sourceId,
+      paint: { 'line-color': ds.outline, 'line-width': 1 },
+      layout: { visibility: ds.visible ? 'visible' : 'none' }
+    })
     layerIds.push(fillId, outlineId)
     attachPopupInteraction(fillId)
   }
@@ -85,34 +115,68 @@ function fitToVisibleDatasets() {
   const visible = datasets.value.map(d => d.visible ? datasetCache.get(d.id) : null).filter(Boolean)
   if (visible.length === 0) return
   const combined = new mapboxgl.LngLatBounds()
-  for (const c of visible) if (c.bounds && !c.bounds.isEmpty()) { combined.extend(c.bounds.getSouthWest()); combined.extend(c.bounds.getNorthEast()) }
+  for (const c of visible) if (c.bounds && !c.bounds.isEmpty()) {
+    combined.extend(c.bounds.getSouthWest())
+    combined.extend(c.bounds.getNorthEast())
+  }
   if (!combined.isEmpty()) map.fitBounds(combined, { padding: 40, duration: 500 })
+}
+
+// 使用者定位
+function ensureUserLayer() {
+  if (!map.getSource('user-location')) {
+    map.addSource('user-location', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    })
+  }
+  if (!map.getLayer('user-location-circle')) {
+    map.addLayer({
+      id: 'user-location-circle',
+      type: 'circle',
+      source: 'user-location',
+      paint: {
+        'circle-radius': 8,
+        'circle-color': '#2563eb',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff'
+      }
+    })
+  }
+}
+
+function updateUserLocation(lon, lat) {
+  const src = map.getSource('user-location')
+  if (!src) return
+  const geo = {
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] } }]
+  }
+  src.setData(geo)
+  map.flyTo({ center: [lon, lat], zoom: 15 })
+}
+
+function startAutoLocate() {
+  if (!('geolocation' in navigator)) {
+    console.warn('Geolocation not supported')
+    return
+  }
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const lon = pos.coords.longitude
+      const lat = pos.coords.latitude
+      updateUserLocation(lon, lat)
+    },
+    (err) => console.warn('GPS error:', err),
+    { enableHighAccuracy: true, maximumAge: 10000 }
+  )
 }
 
 onMounted(() => {
   const token = import.meta.env.VITE_MAPBOXTOKEN
-  const rawStyle = import.meta.env.VITE_MAPBOXTILE
-
-  let styleUrl = 'mapbox://styles/mapbox/streets-v12'
-  if (rawStyle) {
-    const v = String(rawStyle).trim()
-    if (v.startsWith('mapbox://') || v.startsWith('http')) {
-      styleUrl = v
-    } else if (v.includes('/')) {
-      styleUrl = `mapbox://styles/${v}`
-    } else if (v.includes('.')) {
-      // allow tileset-like "user.styleid" to be used as style "user/styleid"
-      const normalized = v.replace('.', '/')
-      styleUrl = `mapbox://styles/${normalized}`
-    }
-  }
-
-  if (!token) {
-    console.warn('VITE_MAPBOXTOKEN is missing')
-    return
-  }
-
+  const styleUrl = 'mapbox://styles/mapbox/streets-v12'
   mapboxgl.accessToken = token
+
   map = new mapboxgl.Map({
     container: mapEl.value,
     style: styleUrl,
@@ -122,25 +186,17 @@ onMounted(() => {
 
   map.addControl(new mapboxgl.NavigationControl())
 
-  map.on('error', (e) => {
-    console.warn('Mapbox error:', e?.error || e)
-  })
-
   map.on('load', async () => {
-    try {
-      for (const ds of datasets.value) await ensureDatasetLoaded(ds)
-      fitToVisibleDatasets()
-    } catch (err) {
-      console.warn('Failed to load datasets:', err)
-    }
+    for (const ds of datasets.value) await ensureDatasetLoaded(ds)
+    fitToVisibleDatasets()
+    ensureUserLayer()
+    startAutoLocate()  // 啟動自動定位與跟隨
   })
 })
 
 onBeforeUnmount(() => {
-  if (map) {
-    map.remove()
-    map = null
-  }
+  if (watchId) navigator.geolocation.clearWatch(watchId)
+  if (map) map.remove()
 })
 </script>
 
@@ -150,18 +206,15 @@ onBeforeUnmount(() => {
       <h1 class="text-2xl font-semibold">地圖</h1>
       <div class="flex items-center gap-3 flex-wrap">
         <label v-for="ds in datasets" :key="ds.id" class="inline-flex items-center gap-2 text-sm">
-          <input type="checkbox" v-model="ds.visible" @change="() => { setDatasetVisibility(ds, ds.visible); fitToVisibleDatasets() }" />
+          <input type="checkbox" v-model="ds.visible"
+                 @change="() => { setDatasetVisibility(ds, ds.visible); fitToVisibleDatasets() }" />
           <span>{{ ds.name }}</span>
         </label>
       </div>
     </div>
     <div ref="mapEl" class="flex-1 min-h-[400px]" />
   </section>
-  
-  
 </template>
 
 <style scoped>
 </style>
-
-
