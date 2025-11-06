@@ -485,7 +485,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="h-full flex flex-col">
+  <section class="h-screen flex flex-col overflow-hidden">
     <!-- 上排：輸入地址 + 搜尋 + 清除 -->
     <div class="flex items-center gap-2 py-2 px-2 flex-wrap">
       <input
@@ -519,7 +519,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- 地圖 -->
-    <div ref="mapEl" class="flex-1 min-h-[400px]" />
+    <div ref="mapEl" class="flex-1 min-h-0" />
 
     <!-- 底部 1km 內清單 -->
     <div class="w-full bg-white/90 border-t">
@@ -562,4 +562,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+  :global(html, body, #app) {
+    height: 100%;
+    overflow: hidden;
+  }
 </style>
