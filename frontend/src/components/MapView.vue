@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref, createApp, watch, nextTick } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, createApp, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -42,6 +42,9 @@ const datasets = ref([
 
 // 快取：每個資料集 => { sourceId, layerIds, geo, bounds }
 const datasetCache = new Map()
+const FAVORITES_STORAGE_KEY = 'mapFavorites'
+const favorites = ref([])
+const selectedPlace = ref(null)
 
 function handleTabSelect(tab) {
   if (tab === 'recommend') {
@@ -159,6 +162,76 @@ watch(showNearby, async () => {
   await nextTick()
   map?.resize()
 })
+
+const selectedPlaceSaved = computed(() => {
+  if (!selectedPlace.value?.id) return false
+  return favorites.value.some((f) => f.id === selectedPlace.value.id)
+})
+
+function readFavoritesFromStorage() {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (_) {
+    return []
+  }
+}
+
+function refreshFavorites() {
+  const list = readFavoritesFromStorage().map((item) => ({
+    ...item,
+    recommendations: Array.isArray(item?.recommendations) ? item.recommendations : [],
+  }))
+  list.sort((a, b) => {
+    const da = a?.addedAt ? Date.parse(a.addedAt) : 0
+    const db = b?.addedAt ? Date.parse(b.addedAt) : 0
+    return db - da
+  })
+  favorites.value = list
+}
+
+function saveFavorites(list) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(list))
+  window.dispatchEvent(new CustomEvent('map-favorites-updated'))
+}
+
+function removeFavoriteById(id) {
+  const next = favorites.value.filter((f) => f.id !== id)
+  favorites.value = next
+  saveFavorites(next)
+}
+
+function toggleSelectedPlaceFavorite() {
+  if (!selectedPlace.value) return
+
+  if (selectedPlaceSaved.value) {
+    removeFavoriteById(selectedPlace.value.id)
+    alert('已取消收藏')
+    return
+  }
+
+  const nearby = collectNearbyPoints(selectedPlace.value.lon, selectedPlace.value.lat, {
+    respectVisibility: false,
+    respectDistrict: false,
+    limit: 5,
+  })
+
+  const next = [
+    ...favorites.value,
+    {
+      ...selectedPlace.value,
+      recommendations: nearby.map(({ name, addr, dist, lon, lat }) => ({ name, addr, dist, lon, lat })),
+      addedAt: new Date().toISOString(),
+    },
+  ]
+  favorites.value = next
+  saveFavorites(next)
+  alert('已收藏')
+}
 
 // ===== 使用者定位 =====
 function ensureUserLayer() {
@@ -291,34 +364,46 @@ function distM(lon1, lat1, lon2, lat2) {
   return 2 * R * Math.asin(Math.sqrt(a))
 }
 
-// 1km 內據點（尊重「目前可見資料集」與行政區 filter）
-function computeNearby(lon, lat) {
+function collectNearbyPoints(lon, lat, options = {}) {
+  const {
+    maxDistance = 1000,
+    limit = 50,
+    respectVisibility = true,
+    respectDistrict = true,
+  } = options
+
   const results = []
   for (const ds of datasets.value) {
-    if (!ds.visible) continue
+    if (respectVisibility && !ds.visible) continue
     const cache = datasetCache.get(ds.id)
     if (!cache) continue
     const feats = cache.geo?.features || []
     for (const f of feats) {
-      if (selectedDistrict.value && (f?.properties?.['行政區']?.trim() !== selectedDistrict.value)) continue
+      if (respectDistrict && selectedDistrict.value && (f?.properties?.['行政區']?.trim() !== selectedDistrict.value)) continue
       const g = f.geometry
       if (!g || g.type !== 'Point') continue
       const [flon, flat] = g.coordinates
       const d = distM(lon, lat, flon, flat)
-      if (d <= 1000) {
+      if (d <= maxDistance) {
         results.push({
           dsid: ds.id,
           name: f?.properties?.['館所名稱'] || f?.properties?.['場地名稱'] || '(未命名)',
           addr: f?.properties?.['地址'] || '',
           dist: Math.round(d),
-          lon: flon, lat: flat,
-          props: f.properties
+          lon: flon,
+          lat: flat,
+          props: f.properties,
         })
       }
     }
   }
-  results.sort((a,b) => a.dist - b.dist)
-  nearbyList.value = results.slice(0, 50)
+  results.sort((a, b) => a.dist - b.dist)
+  return limit ? results.slice(0, limit) : results
+}
+
+// 1km 內據點（尊重「目前可見資料集」與行政區 filter）
+function computeNearby(lon, lat) {
+  nearbyList.value = collectNearbyPoints(lon, lat, { limit: 50 })
 }
 
 function getCurrentCenterLonLat() {
@@ -345,7 +430,13 @@ function searchInAttractionDataset(kw) {
   })
   if (f?.geometry?.type === 'Point') {
     const [lon, lat] = f.geometry.coordinates
-    return { lon, lat, place: f?.properties?.['館所名稱'] || '' }
+    return {
+      lon,
+      lat,
+      place: f?.properties?.['館所名稱'] || '',
+      addr: f?.properties?.['地址'] || '',
+      props: f?.properties || {}
+    }
   }
   return null
 }
@@ -389,7 +480,7 @@ async function geocodePlaceInTaipei(q) {
       if (f?.center?.length >= 2) {
         const [lon, lat] = f.center
         if (isInsideTPEBBox(lon, lat)) {
-          return { lon, lat, place: f.place_name }
+          return { lon, lat, place: f.place_name, addr: f.place_name }
         }
       }
     }
@@ -417,6 +508,7 @@ async function goSearch() {
     })
     flyToLngLat(lon, lat, 16)
     computeNearby(lon, lat)
+    pickSelectedPlace({ lon: dsHit.lon, lat: dsHit.lat, place: dsHit.place, addr: dsHit.addr })
     return
   }
 
@@ -432,8 +524,26 @@ async function goSearch() {
     })
     flyToLngLat(hit.lon, hit.lat, 16)
     computeNearby(hit.lon, hit.lat)
+    pickSelectedPlace(hit)
   } else {
     alert('找不到此地點（或不在台北市範圍內），請輸入更精確的名稱或地址')
+    selectedPlace.value = null
+  }
+}
+
+function pickSelectedPlace({ lon, lat, place, addr }) {
+  if (typeof lon !== 'number' || typeof lat !== 'number') {
+    selectedPlace.value = null
+    return
+  }
+  const name = place || addr || '未命名地點'
+  const address = addr || place || ''
+  selectedPlace.value = {
+    id: `${lon.toFixed(6)},${lat.toFixed(6)}`,
+    name,
+    address,
+    lon,
+    lat
   }
 }
 
@@ -442,6 +552,7 @@ function clearSearch() {
   lastSearchLonLat.value = null
   originMode.value = 'gps'
   clearSearchMarker()
+  selectedPlace.value = null
   // 回到 GPS 並以 GPS 為中心重新計算
   const c = userLonLat.value || { lon: TPE_CENTER[0], lat: TPE_CENTER[1] }
   map.flyTo({ center: [c.lon, c.lat], zoom: Math.max(map.getZoom() ?? 0, 14) })
@@ -451,6 +562,10 @@ function clearSearch() {
 // ===== Map 初始化 =====
 onMounted(async () => {
   await nextTick()
+  refreshFavorites()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('map-favorites-updated', refreshFavorites)
+  }
   const token = import.meta.env.VITE_MAPBOXTOKEN
   const styleUrl = 'mapbox://styles/mapbox/streets-v12'
   if (!token) {
@@ -493,6 +608,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('map-favorites-updated', refreshFavorites)
+  }
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   if (flutterMsgHandler) {
     if (window.flutterObject && typeof window.flutterObject.removeEventListener === 'function') {
@@ -508,11 +626,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="bg-white min-h-screen">
-    <section class="mx-auto flex h-[100dvh] w-full max-w-[720px] flex-col px-4 pb-6 pt-4 overflow-hidden">
+    <section class="mx-auto flex h-[100dvh] w-full max-w-[720px] flex-col px-3 pb-5 pt-2 overflow-hidden">
       <TopTabs active="map" @select="handleTabSelect" />
 
-      <div class="mt-4 flex flex-1 flex-col gap-3 overflow-hidden">
-        <div class="flex w-full flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+      <div class="mt-3 flex flex-1 flex-col gap-3 overflow-hidden">
+        <div class="flex w-full flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-sky-50 px-3 py-2 shadow-sm">
           <div class="flex flex-1 items-center gap-2">
             <input
               v-model="searchText"
@@ -521,7 +639,7 @@ onBeforeUnmount(() => {
               placeholder="輸入地點或地址"
               class="flex-1 min-w-[160px] rounded-md border px-3 py-2 text-sm"
             />
-            <button @click="goSearch" class="rounded-md bg-sky-600 px-3 py-2 text-sm text-white">搜尋</button>
+            <button @click="goSearch" class="rounded-md bg-sky-500 px-3 py-2 text-sm text-white">搜尋</button>
             <button @click="clearSearch" class="rounded-md border px-3 py-2 text-sm">清除</button>
           </div>
 
@@ -548,6 +666,21 @@ onBeforeUnmount(() => {
                 {{ ds.name }}
               </button>
             </div>
+          </div>
+
+          <div v-if="selectedPlace" class="flex items-center gap-2 text-xs text-gray-600">
+            <span class="max-w-[120px] truncate sm:max-w-[200px]" :title="selectedPlace.address || selectedPlace.name">
+              {{ selectedPlace.name }}
+            </span>
+            <button
+              @click="toggleSelectedPlaceFavorite"
+              :class="[
+                'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                selectedPlaceSaved ? 'border border-gray-300 bg-white text-gray-600' : 'bg-emerald-500 text-white'
+              ]"
+            >
+              {{ selectedPlaceSaved ? '取消收藏' : '收藏' }}
+            </button>
           </div>
         </div>
 
