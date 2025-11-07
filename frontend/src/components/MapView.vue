@@ -22,6 +22,7 @@ const nearbyList = ref([])
 const lastSearchLonLat = ref(null)  // { lon, lat }：最近一次「搜尋中心」
 const userLonLat = ref(null)        // { lon, lat }：最新「GPS 定位」
 const originMode = ref('gps')       // 'gps' | 'search'
+const showSettingsPanel = ref(false) // 設定齒輪彈窗開關
 
 // ====== 台北市行政區（固定清單）=====
 const TPE_DISTRICTS = [
@@ -34,10 +35,10 @@ const districtOptions = ref([...TPE_DISTRICTS])
 const TPE_CENTER = [121.5654, 25.0330]
 const TPE_BBOX = '121.457,24.955,121.654,25.201'
 
-// ====== 資料集（點選可顯示/隱藏） ======
+// ====== 資料集（全部顯示） ======
 const datasets = ref([
   { id: 'accessibility', name: '無障礙據點', url: '/mapData/accessibility_new_tpe.geojson', color: '#10b981', outline: '#064e3b', visible: true },
-  { id: 'attraction',    name: '景點',       url: '/mapData/attraction_tpe.geojson',     color: '#f59e0b', outline: '#92400e', visible: false },
+  { id: 'attraction',    name: '景點',       url: '/mapData/attraction_tpe.geojson',     color: '#f59e0b', outline: '#92400e', visible: true },
 ])
 
 // 快取：每個資料集 => { sourceId, layerIds, geo, bounds }
@@ -206,11 +207,13 @@ function removeFavoriteById(id) {
 }
 
 function toggleSelectedPlaceFavorite() {
-  if (!selectedPlace.value) return
+  if (!selectedPlace.value) {
+    alert('請先搜尋地點')
+    return
+  }
 
   if (selectedPlaceSaved.value) {
     removeFavoriteById(selectedPlace.value.id)
-    alert('已取消收藏')
     return
   }
 
@@ -230,7 +233,21 @@ function toggleSelectedPlaceFavorite() {
   ]
   favorites.value = next
   saveFavorites(next)
-  alert('已收藏')
+}
+
+function clearSearchText() {
+  searchText.value = ''
+}
+
+function centerOnUserLocation() {
+  if (!userLonLat.value) {
+    alert('尚未取得您的位置')
+    return
+  }
+  const { lon, lat } = userLonLat.value
+  map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom() ?? 0, 15) })
+  originMode.value = 'gps'
+  computeNearby(lon, lat)
 }
 
 // ===== 使用者定位 =====
@@ -629,65 +646,128 @@ onBeforeUnmount(() => {
     <section class="mx-auto flex h-[100dvh] w-full max-w-[720px] flex-col px-3 pb-5 pt-2 overflow-hidden">
       <TopTabs active="map" @select="handleTabSelect" />
 
-      <div class="mt-3 flex flex-1 flex-col gap-3 overflow-hidden">
-        <div class="flex w-full flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-sky-50 px-3 py-2 shadow-sm">
-          <div class="flex flex-1 items-center gap-2">
+      <div class="mt-3 flex flex-1 flex-col overflow-hidden">
+        <!-- 搜尋列 -->
+        <div class="relative z-10 mb-3 flex w-full items-center">
+          <div class="relative flex flex-1 items-center">
             <input
               v-model="searchText"
               @keyup.enter="goSearch"
               type="text"
               placeholder="輸入地點或地址"
-              class="flex-1 min-w-[160px] rounded-md border px-3 py-2 text-sm"
+              class="w-full rounded-full border border-gray-300 bg-white pl-4 pr-20 py-2.5 text-sm shadow-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
             />
-            <button @click="goSearch" class="rounded-md bg-sky-500 px-3 py-2 text-sm text-white">搜尋</button>
-            <button @click="clearSearch" class="rounded-md border px-3 py-2 text-sm">清除</button>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2 text-sm">
-            <select
-              v-model="selectedDistrict"
-              @change="applyDistrictFilter"
-              class="rounded-md border px-3 py-2 text-sm"
-            >
-              <option value="">行政區</option>
-              <option v-for="d in districtOptions" :key="d" :value="d">{{ d }}</option>
-            </select>
-
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="absolute right-2 flex items-center gap-1">
               <button
-                v-for="ds in datasets"
-                :key="ds.id"
-                @click="toggleDataset(ds)"
-                :class="[
-                  'rounded-full border px-3 py-1 text-sm transition-colors',
-                  ds.visible ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-300 text-gray-600'
-                ]"
+                v-if="searchText"
+                @click="clearSearchText"
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                title="清除輸入"
               >
-                {{ ds.name }}
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+              <button
+                @click="goSearch"
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-white hover:bg-sky-600"
+                title="搜尋"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
               </button>
             </div>
           </div>
-
-          <div v-if="selectedPlace" class="flex items-center gap-2 text-xs text-gray-600">
-            <span class="max-w-[120px] truncate sm:max-w-[200px]" :title="selectedPlace.address || selectedPlace.name">
-              {{ selectedPlace.name }}
-            </span>
-            <button
-              @click="toggleSelectedPlaceFavorite"
-              :class="[
-                'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                selectedPlaceSaved ? 'border border-gray-300 bg-white text-gray-600' : 'bg-emerald-500 text-white'
-              ]"
-            >
-              {{ selectedPlaceSaved ? '取消收藏' : '收藏' }}
-            </button>
-          </div>
         </div>
 
-        <!-- 地圖與附近列表 -->
+        <!-- 地圖容器 -->
         <div class="relative flex-1 overflow-hidden">
           <div ref="mapEl" class="h-full w-full rounded-2xl border border-gray-200" />
 
+          <!-- 圓形按鈕群組 - 覆蓋在地圖右上角 -->
+          <div class="pointer-events-none absolute inset-0 p-3">
+            <div class="pointer-events-auto flex flex-col gap-2 ml-auto w-fit" style="margin-top: 90px;">
+              <!-- 定位按鈕 -->
+              <button
+                @click="centerOnUserLocation"
+                type="button"
+                class="flex h-11 w-11 items-center justify-center rounded-full border border-gray-300 bg-white text-sky-500 shadow-md hover:bg-sky-50 transition-colors"
+                title="回到我的位置"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <line x1="12" y1="2" x2="12" y2="4"></line>
+                  <line x1="12" y1="20" x2="12" y2="22"></line>
+                  <line x1="2" y1="12" x2="4" y2="12"></line>
+                  <line x1="20" y1="12" x2="22" y2="12"></line>
+                </svg>
+              </button>
+
+              <!-- 收藏按鈕 -->
+              <button
+                @click="toggleSelectedPlaceFavorite"
+                type="button"
+                :class="[
+                  'flex h-11 w-11 items-center justify-center rounded-full border shadow-md transition-colors',
+                  selectedPlaceSaved 
+                    ? 'border-red-400 bg-red-50 text-red-500' 
+                    : 'border-gray-300 bg-white text-gray-400 hover:bg-gray-50'
+                ]"
+                title="收藏地點"
+              >
+                <svg v-if="selectedPlaceSaved" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+                <svg v-else class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+              </button>
+
+              <!-- 設定按鈕帶下拉選單 -->
+              <div class="relative">
+                <button
+                  @click="showSettingsPanel = !showSettingsPanel"
+                  type="button"
+                  :class="[
+                    'flex h-11 w-11 items-center justify-center rounded-full border shadow-md transition-colors',
+                    showSettingsPanel 
+                      ? 'border-sky-400 bg-sky-50 text-sky-600' 
+                      : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'
+                  ]"
+                  title="設定"
+                >
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+
+                <!-- 下拉選單 -->
+                <div
+                  v-if="showSettingsPanel"
+                  class="absolute right-0 top-full mt-2 w-48 rounded-lg border border-gray-200 bg-white shadow-lg"
+                >
+                  <div class="p-3">
+                    <label class="mb-2 block text-xs font-medium text-gray-600">行政區篩選</label>
+                    <select
+                      v-model="selectedDistrict"
+                      @change="applyDistrictFilter"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                    >
+                      <option value="">全部</option>
+                      <option v-for="d in districtOptions" :key="d" :value="d">{{ d }}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 附近列表 -->
           <div class="pointer-events-none absolute inset-x-0 bottom-0 px-2 pb-2">
             <div v-if="showNearby" class="pointer-events-auto w-full rounded-2xl border border-gray-200 bg-white/95 shadow-sm">
               <button
