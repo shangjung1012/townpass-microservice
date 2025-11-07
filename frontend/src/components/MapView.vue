@@ -689,7 +689,7 @@ onBeforeUnmount(() => {
 
           <!-- 圓形按鈕群組 - 覆蓋在地圖右上角 -->
           <div class="pointer-events-none absolute inset-0 p-3">
-            <div class="pointer-events-auto flex flex-col gap-2 ml-auto w-fit" style="margin-top: 90px;">
+            <div class="pointer-events-auto flex flex-col gap-2 ml-auto w-fit" style="margin-top: 120px;">
               <!-- 定位按鈕 -->
               <button
                 @click="centerOnUserLocation"
