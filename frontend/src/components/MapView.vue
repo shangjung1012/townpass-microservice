@@ -52,7 +52,7 @@ const ATTRACTION_DATASET_URL = '/mapData/attraction_tpe.geojson'
 
 const datasets = ref([
   { id: 'construction', name: '施工地點', url: `${API_BASE}/api/construction/geojson`, color: '#ef4444', outline: '#7f1d1d', visible: true, includeNearby: true },
-  { id: 'narrow_street', name: '巷弄線圖', url: '/mapData/fire_narrow_street.geojson', color: '#64748b', outline: '#475569', visible: true, includeNearby: false },
+  { id: 'narrow_street', name: '巷弄線圖', url: '/mapData/fire_narrow_street.geojson', color: '#64748b', outline: '#0a0a0a', visible: true, includeNearby: false },
 ])
 
 const ROAD_SEARCH_SOURCE_ID = 'road-search'
@@ -1560,15 +1560,6 @@ function ensureNearbyCircleLayer() {
   // lines (窄巷) highlight source/layer
   if (!map.getSource('nearby-lines-highlight')) {
     map.addSource('nearby-lines-highlight', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  }
-  if (!map.getLayer('nearby-lines-highlight')) {
-    map.addLayer({
-      id: 'nearby-lines-highlight',
-      type: 'line',
-      source: 'nearby-lines-highlight',
-      paint: { 'line-color': '#7c3aed', 'line-width': 4, 'line-opacity': 0.9 }
-    })
-    attachPopupInteraction('nearby-lines-highlight', 'narrow_street')
   }
 
   // center marker (藍色圓心)
