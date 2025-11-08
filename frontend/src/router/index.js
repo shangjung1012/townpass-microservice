@@ -4,7 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 const Home = () => import('@/components/Home.vue')
 const About = () => import('@/components/About.vue')
 const MapView = () => import('@/components/MapView.vue')
-const AnnouncementView = () => import('@/views/AnnouncementView.vue')
+const AnnouncementView = () => import('@/components/AnnouncementView.vue')
 const RoadWatch = () => import('@/components/RoadWatch.vue')
 
 const router = createRouter({

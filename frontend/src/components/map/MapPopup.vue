@@ -225,6 +225,15 @@ async function toggleFavorite() {
         placeName = props.properties?.DIGADD || props.properties?.['位置'] || placeName
         address = props.properties?.PURP || props.properties?.['用途'] || address
       }
+      // 如果是 narrow_street 類型，使用 alley_name 字段
+      else if (props.datasetId === 'narrow_street') {
+        const config = fieldMapping[props.datasetId]
+        if (config) {
+          // 使用 fieldMapping 中定義的字段名來獲取值
+          placeName = props.properties?.alley_name || placeName
+          address = props.properties?.alley_name || address
+        }
+      }
       
       const payload = {
         type: 'place',
