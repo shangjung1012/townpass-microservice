@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import TopTabs from './TopTabs.vue'
-import { hello, echo, listUsers, createUser, listTestRecords, createTestRecord } from '@/service/api'
+import { hello, echo, listUsers, createUser, listTestRecords, createTestRecord, getConstructionData, updateConstructionData } from '@/service/api'
 
 const hi = ref(null)          // GET /api/hello 回傳
 const echoMsg = ref('ping')   // POST /api/echo 輸入
@@ -14,6 +14,10 @@ const newName = ref('Alice')  // POST /api/users 的 name
 const tests = ref([])         // GET /api/test_records 回傳
 const newTestTitle = ref('Sample title')
 const newTestDescription = ref('A short description')
+
+const constructionData = ref(null)  // GET /api/construction/geojson 回傳
+const constructionUpdateStatus = ref(null)  // GET /api/construction/update 回傳
+const constructionLoading = ref(false)
 
 const loading = ref(false)
 const error = ref('')
@@ -30,6 +34,7 @@ onMounted(async () => {
     hi.value = await hello()
     users.value = await listUsers()
     tests.value = await listTestRecords()
+    await loadConstructionData()
   } catch (e) {
     error.value = e?.message || String(e)
   } finally {
@@ -173,6 +178,34 @@ function formatDistance(meters) {
   }
   return `${Math.round(meters)} 公尺`
 }
+
+async function loadConstructionData() {
+  try {
+    constructionLoading.value = true
+    error.value = ''
+    constructionData.value = await getConstructionData()
+  } catch (e) {
+    error.value = e?.message || String(e)
+    constructionData.value = null
+  } finally {
+    constructionLoading.value = false
+  }
+}
+
+async function triggerConstructionUpdate() {
+  try {
+    constructionLoading.value = true
+    error.value = ''
+    constructionUpdateStatus.value = await updateConstructionData()
+    // 更新後重新載入數據
+    await loadConstructionData()
+  } catch (e) {
+    error.value = e?.message || String(e)
+    constructionUpdateStatus.value = null
+  } finally {
+    constructionLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -283,6 +316,41 @@ function formatDistance(meters) {
         <ul class="mt-2 list-disc pl-6">
           <li v-for="t in tests" :key="t.id">{{ t.id }} — <strong>{{ t.title }}</strong> — {{ t.description }}</li>
         </ul>
+      </article>
+
+      <!-- 5) 測試 Construction API -->
+      <article class="border border-gray-200 rounded-lg p-3">
+        <h3 class="font-semibold mb-2">Construction Data API</h3>
+        <div class="flex items-center gap-2 mb-2">
+          <button 
+            @click="loadConstructionData" 
+            :disabled="constructionLoading"
+            class="px-3 py-1 border border-gray-400 rounded hover:border-indigo-500 disabled:opacity-50"
+          >
+            {{ constructionLoading ? 'Loading...' : 'Get Data' }}
+          </button>
+          <button 
+            @click="triggerConstructionUpdate" 
+            :disabled="constructionLoading"
+            class="px-3 py-1 border border-green-400 rounded hover:border-green-500 disabled:opacity-50 bg-green-50"
+          >
+            {{ constructionLoading ? 'Updating...' : 'Update Data' }}
+          </button>
+        </div>
+        <div v-if="constructionUpdateStatus" class="mb-2 p-2 bg-green-50 border border-green-200 rounded">
+          <div class="text-sm font-medium text-green-800">Update Status:</div>
+          <pre class="text-xs mt-1 overflow-auto">{{ JSON.stringify(constructionUpdateStatus, null, 2) }}</pre>
+        </div>
+        <div v-if="constructionData" class="mt-2">
+          <div class="text-sm font-medium mb-1">
+            GeoJSON Data ({{ constructionData.features?.length || 0 }} features)
+          </div>
+          <details class="bg-gray-100 p-2 rounded">
+            <summary class="cursor-pointer text-sm text-gray-600 hover:text-gray-800">Click to view data</summary>
+            <pre class="mt-2 text-xs overflow-auto max-h-60">{{ JSON.stringify(constructionData, null, 2) }}</pre>
+          </details>
+        </div>
+        <div v-else-if="!constructionLoading" class="text-sm text-gray-500">No data loaded. Click "Get Data" to fetch.</div>
       </article>
     </div>
   </section>

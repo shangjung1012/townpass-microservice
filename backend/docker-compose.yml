@@ -23,7 +23,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: python -m alembic -c alembic.ini upgrade head
+    command: uv run alembic -c alembic.ini upgrade head
 
   adminer:
     image: adminer
