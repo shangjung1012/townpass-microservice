@@ -900,7 +900,7 @@ onBeforeUnmount(() => {
                 <span>距中心點 1 公里內的據點（{{ nearbyList.length }}）</span>
                 <span class="text-sm text-gray-500">收合</span>
               </button>
-              <div class="max-h-72 overflow-auto px-4 pb-4">
+              <div class="max-h-48 overflow-y-auto px-4 pb-4">
                 <p v-if="!userLonLat && !lastSearchLonLat" class="text-sm text-gray-500">等待 GPS 定位中，或先進行一次搜尋。</p>
                 <ul v-else class="divide-y">
                   <li
