@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 const Home = () => import('@/components/Home.vue')
 const About = () => import('@/components/About.vue')
 const MapView = () => import('@/components/MapView.vue')
+const Announcement = () => import('@/components/Announcement.vue')
 
 const router = createRouter({
   history: createWebHistory(),   // 若無法設定伺服器 rewrite，改用 createWebHashHistory()
@@ -11,6 +12,7 @@ const router = createRouter({
     { path: '/', component: Home },
     { path: '/about', component: About },
     { path: '/map', component: MapView },
+    { path: '/announcement', component: Announcement },
     // 404
     { path: '/:pathMatch(.*)*', component: { template: '<h2>Not Found</h2>' } }
   ],

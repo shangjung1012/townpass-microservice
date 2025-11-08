@@ -38,6 +38,11 @@ function selectTab(tab) {
     return
   }
 
+  if (tab === 'announcement') {
+    router.push('/announcement')
+    return
+  }
+
   currentTab.value = 'map'
   if (router.currentRoute.value.path !== '/map') {
     router.push('/map')
@@ -100,9 +105,9 @@ function toggleFavoriteDetails(id) {
     expandedFavoriteIds.value = expandedFavoriteIds.value.filter((item) => item !== id)
   } else {
     expandedFavoriteIds.value = [...expandedFavoriteIds.value, id]
-    // 預設選擇景點
+    // 預設選擇施工（因為已移除景點選項）
     if (!selectedCategory.value[id]) {
-      selectedCategory.value[id] = 'attraction'
+      selectedCategory.value[id] = 'construction'
     }
   }
 }
@@ -183,13 +188,8 @@ function selectCategoryForPlace(placeId, category) {
 
 function getFilteredRecommendations(place) {
   const recs = Array.isArray(place.recommendations) ? place.recommendations : []
-  const category = selectedCategory.value[place.id] || 'attraction'
-  if (category === 'construction') {
-    // 施工資訊：依 dsid 或 props 判斷
-    return recs.filter(r => r?.dsid === 'construction' || (r?.props && (r.props.AP_NAME || r.props.PURP)))
-  }
-  // 景點：僅 attraction
-  return recs.filter(r => r?.dsid === 'attraction' || (!r?.dsid && !r?.props))
+  // 只顯示施工資訊
+  return recs.filter(r => r?.dsid === 'construction' || (r?.props && (r.props.AP_NAME || r.props.PURP)))
 }
 
 function formatFavoriteDate(value) {
@@ -277,7 +277,7 @@ async function triggerConstructionUpdate() {
                   <div v-else-if="place.addr" class="mt-0.5 text-xs text-gray-500">{{ place.addr }}</div>
                 </div>
                 <span
-                  class="mt-1 inline-block text-sm text-blue-500 transition-transform shrink-0"
+                  class="mt-1 inline-block text-sm text-blue-900 transition-transform shrink-0"
                   :class="isFavoriteExpanded(place.id) ? 'rotate-180' : 'rotate-0'"
                 >▼</span>
               </div>
@@ -320,38 +320,12 @@ async function triggerConstructionUpdate() {
             v-if="isFavoriteExpanded(place.id)"
             class="border-t border-slate-200 bg-slate-50 px-4 py-4"
           >
-            <!-- 類別選擇圓形按鈕 -->
-            <div class="mb-4 flex items-center gap-3">
-              <span class="text-xs font-medium text-gray-600">附近資訊：</span>
-              <div class="flex gap-2">
-                <button
-                  type="button"
-                  @click="selectCategoryForPlace(place.id, 'attraction')"
-                  :class="[
-                    'flex h-10 items-center justify-center rounded-full border-2 px-4 text-xs font-medium transition-all',
-                    selectedCategory[place.id] === 'attraction'
-                      ? 'border-sky-500 bg-sky-500 text-white shadow-md'
-                      : 'border-gray-300 bg-white text-gray-600 hover:border-sky-300'
-                  ]"
-                >
-                  景點
-                </button>
-                <button
-                  type="button"
-                  @click="selectCategoryForPlace(place.id, 'construction')"
-                  :class="[
-                    'flex h-10 items-center justify-center rounded-full border-2 px-4 text-xs font-medium transition-all',
-                    selectedCategory[place.id] === 'construction'
-                      ? 'border-orange-500 bg-orange-500 text-white shadow-md'
-                      : 'border-gray-300 bg-white text-gray-600 hover:border-orange-300'
-                  ]"
-                >
-                  施工資訊
-                </button>
-              </div>
+            <!-- 標題 -->
+            <div class="mb-3">
+              <h3 class="text-sm font-semibold text-gray-800">附近施工公告</h3>
             </div>
 
-            <!-- 附近推薦列表 -->
+            <!-- 施工公告列表 -->
             <div class="space-y-2">
               <template v-if="getFilteredRecommendations(place).length">
                 <div
@@ -359,19 +333,17 @@ async function triggerConstructionUpdate() {
                   :key="rec.id || rec.name"
                   class="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
                 >
-                  <div v-if="selectedCategory[place.id] === 'construction'" class="text-sm text-gray-800">
+                  <div class="text-sm text-gray-800">
                     <div class="font-medium">{{ rec.props?.AP_NAME || rec.name }}</div>
                     <div class="text-xs text-gray-600 mt-0.5">{{ rec.props?.PURP || rec.addr }}</div>
                   </div>
-                  <div v-else class="font-medium text-sm text-gray-800">{{ rec.name }}</div>
-                  <div v-if="selectedCategory[place.id] !== 'construction' && rec.addr" class="text-xs text-gray-500 mt-1">{{ rec.addr }}</div>
                   <div v-if="typeof rec.dist === 'number'" class="text-xs text-gray-400 mt-1">
                     距離約 {{ formatDistance(rec.dist) }}
                   </div>
                 </div>
               </template>
-              <p v-else class="text-sm text-gray-500 text-center py-4">
-                附近暫無{{ selectedCategory[place.id] === 'construction' ? '施工' : '景點' }}資訊
+              <p v-else class="py-3 text-center text-xs text-gray-500">
+                1 公里內沒有施工資訊
               </p>
             </div>
           </div>
