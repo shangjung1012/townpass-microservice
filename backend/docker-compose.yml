@@ -46,6 +46,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./app:/app/app
+      - ./alembic:/app/alembic
 
 volumes:
   pgdata:
