@@ -2,25 +2,8 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import TopTabs from './TopTabs.vue'
-import { hello, echo, listUsers, createUser, listTestRecords, createTestRecord, getConstructionData, updateConstructionData } from '@/service/api'
+import { getConstructionData, updateConstructionData } from '@/service/api'
 
-const hi = ref(null)          // GET /api/hello 回傳
-const echoMsg = ref('ping')   // POST /api/echo 輸入
-const echoResp = ref(null)    // POST /api/echo 回傳
-
-const users = ref([])         // GET /api/users 回傳
-const newName = ref('Alice')  // POST /api/users 的 name
-
-const tests = ref([])         // GET /api/test_records 回傳
-const newTestTitle = ref('Sample title')
-const newTestDescription = ref('A short description')
-
-const constructionData = ref(null)  // GET /api/construction/geojson 回傳
-const constructionUpdateStatus = ref(null)  // GET /api/construction/update 回傳
-const constructionLoading = ref(false)
-
-const loading = ref(false)
-const error = ref('')
 const router = useRouter()
 const currentTab = ref('recommend')
 const savedPlaces = ref([])
@@ -31,18 +14,6 @@ const FAVORITES_STORAGE_KEY = 'mapFavorites'
 const NOTIFICATION_STORAGE_KEY = 'placeNotifications'
 
 onMounted(async () => {
-  try {
-    loading.value = true
-    error.value = ''
-    hi.value = await hello()
-    users.value = await listUsers()
-    tests.value = await listTestRecords()
-    await loadConstructionData()
-  } catch (e) {
-    error.value = e?.message || String(e)
-  } finally {
-    loading.value = false
-  }
   loadSavedPlaces()
   loadNotificationSettings()
   if (typeof window !== 'undefined') {
