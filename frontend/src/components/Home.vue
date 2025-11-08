@@ -62,8 +62,15 @@ function normalizeFavorite(raw) {
     }
   } else if (type === 'place') {
     // 從 place_data 恢復地點信息
+    // 但保留數據庫的原始 id（數字），不要被 place_data.id（可能是坐標字符串）覆蓋
+    const dbId = normalized.id // 保存數據庫的 id
     if (raw.place_data) {
-      Object.assign(normalized, raw.place_data)
+      const { id: placeDataId, ...placeDataWithoutId } = raw.place_data
+      Object.assign(normalized, placeDataWithoutId)
+    }
+    // 確保使用數據庫的 id
+    if (dbId !== undefined) {
+      normalized.id = dbId
     }
   }
   // 從後端字段映射到前端字段
@@ -181,7 +188,7 @@ async function getUserIdFromFlutter() {
         localStorage.setItem('userId', DEFAULT_TEST_USER_ID)
       } catch (e) {}
       doResolve(DEFAULT_TEST_USER_ID)
-    }, 1500)
+    }, 150)
   })
 }
 

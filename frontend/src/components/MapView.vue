@@ -148,6 +148,21 @@ function attachPopupInteraction(layerId, datasetId) {
     const feature = e?.features?.[0]
     if (!feature) return
     const props = feature.properties || {}
+    const [lon, lat] = e.lngLat.toArray()
+    
+    // 設置 selectedPlace，以便可以收藏
+    if (datasetId === 'construction') {
+      // 對於 construction 類型，使用 DIGADD 和 PURP 字段
+      const name = props['DIGADD'] || props['位置'] || '未命名地點'
+      const addr = props['PURP'] || props['用途'] || ''
+      pickSelectedPlace({ lon, lat, place: name, addr, props })
+    } else {
+      // 對於其他類型，使用位置和地址字段
+      const name = props['位置'] || props['name'] || props['title'] || '未命名地點'
+      const addr = props['地址'] || props['address'] || props['addr'] || ''
+      pickSelectedPlace({ lon, lat, place: name, addr, props })
+    }
+    
     createMapPopup(props, datasetId, e.lngLat)
   })
 }
@@ -167,9 +182,20 @@ function showNearbyItemPopup(item) {
   // 飛到該位置（使用 padding 讓目標點不在正中心）
   flyToLngLat(item.lon, item.lat, 16, { bottom: 250 })
   // map.flyTo({ center: [item.lon, item.lat], zoom: 16 })
-  // 創建並顯示 popup
+  
+  // 設置 selectedPlace，以便可以收藏
   const props = item.props || {}
-  const datasetId = item.dsid || 'attraction' // 從 item 中取得資料集 ID
+  const datasetId = item.dsid || 'attraction'
+  // item 已經有正確的 name 和 addr（在 collectNearbyPoints 中已處理）
+  pickSelectedPlace({ 
+    lon: item.lon, 
+    lat: item.lat, 
+    place: item.name, 
+    addr: item.addr,
+    props 
+  })
+  
+  // 創建並顯示 popup
   createMapPopup(props, datasetId, [item.lon, item.lat])
 }
 
@@ -594,7 +620,7 @@ async function getUserIdFromFlutter() {
         localStorage.setItem('userId', DEFAULT_TEST_USER_ID)
       } catch (e) {}
       doResolve(DEFAULT_TEST_USER_ID)
-    }, 1500)
+    }, 150)
   })
 }
 
@@ -706,13 +732,24 @@ async function toggleFavorite() {
       return
     }
 
+    // 檢查是否是 construction 類型，如果是則從 props 中提取 DIGADD 和 PURP
+    const props = place.props || {}
+    let name = place.name || place.addr || '未命名地點'
+    let address = place.addr || place.name || ''
+    
+    // 如果 props 中有 DIGADD 和 PURP，說明是 construction 類型
+    if (props.DIGADD || props.PURP) {
+      name = props.DIGADD || props['位置'] || name
+      address = props.PURP || props['用途'] || address
+    }
+
     const payload = {
       type: 'place',
-      name: place.name || place.addr || '未命名地點',
-      address: place.addr || place.name || '',
+      name: name,
+      address: address,
       lon: place.lon,
       lat: place.lat,
-      place_data: place, // 保存完整地點信息
+      place_data: place, // 保存完整地點信息（已包含 props）
       recommendations: nearby.map((r) => ({
         name: r.name,
         addr: r.addr,
@@ -2099,7 +2136,7 @@ async function goSearch() {
   }
 }
 
-function pickSelectedPlace({ lon, lat, place, addr }) {
+function pickSelectedPlace({ lon, lat, place, addr, props }) {
   if (typeof lon !== 'number' || typeof lat !== 'number') {
     selectedPlace.value = null
     return
@@ -2111,7 +2148,8 @@ function pickSelectedPlace({ lon, lat, place, addr }) {
     name,
     address,
     lon,
-    lat
+    lat,
+    props: props || {} // 保存完整的 properties，以便收藏時使用
   }
 }
 

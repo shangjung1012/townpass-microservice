@@ -201,8 +201,14 @@ async function toggleFavorite() {
       }
     } else {
       // 創建收藏
-      const placeName = props.properties?.name || props.properties?.title || '未命名地點'
-      const address = props.properties?.address || props.properties?.addr || placeName
+      let placeName = props.properties?.name || props.properties?.title || '未命名地點'
+      let address = props.properties?.address || props.properties?.addr || placeName
+      
+      // 如果是 construction 類型，使用 DIGADD 和 PURP 字段
+      if (props.datasetId === 'construction') {
+        placeName = props.properties?.DIGADD || props.properties?.['位置'] || placeName
+        address = props.properties?.PURP || props.properties?.['用途'] || address
+      }
       
       const payload = {
         type: 'place',
