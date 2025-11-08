@@ -104,15 +104,19 @@ async function getUserIdFromFlutter() {
     const requestUserId = () => {
       try {
         if (window.flutterObject?.postMessage) {
+          console.log('📤 Requesting user_id from Flutter...')
           window.flutterObject.postMessage(JSON.stringify({ name: 'get_user_id' }))
+        } else {
+          console.warn('⚠️ window.flutterObject.postMessage is not available')
         }
       } catch (e) {
-        console.warn('Failed to request user_id from Flutter', e)
+        console.warn('❌ Failed to request user_id from Flutter', e)
       }
     }
     
     // 監聽 Flutter 返回的 user_id
     const handleUserIdMessage = (event) => {
+      console.log('🔔 Received message event:', event, typeof event)
       try {
         // 處理多種可能的消息格式
         let msg = null
@@ -129,15 +133,11 @@ async function getUserIdFromFlutter() {
           msg = event
         }
         
-        // 檢查是否是 user_id 消息
-        if (msg?.name === 'user_id' && msg?.data?.user_id) {
-          const userId = msg.data.user_id
-          console.log('✅ Received user_id from Flutter:', userId)
-          
-          // 保存到 localStorage
-          try {
-            localStorage.setItem('userId', userId)
-          } catch (e) {}
+        console.log('📦 Parsed message:', msg)
+        
+        // 檢查是否是 user_id 消息（即使 user_id 為空也要處理）
+        if (msg?.name === 'user_id' && msg?.data !== undefined) {
+          const userId = msg.data?.user_id ?? ''
           
           // 清理監聽器
           if (typeof window !== 'undefined') {
@@ -147,22 +147,115 @@ async function getUserIdFromFlutter() {
             }
           }
           
-          doResolve(userId)
+          if (userId && userId.length > 0) {
+            console.log('✅ Received user_id from Flutter:', userId)
+            // 保存到 localStorage
+            try {
+              localStorage.setItem('userId', userId)
+            } catch (e) {}
+            doResolve(userId)
+          } else {
+            console.warn('⚠️ Received empty user_id from Flutter, will fallback to localStorage')
+            // 即使收到空字符串，也清理監聽器並讓 fallback 邏輯處理
+            // 不立即 resolve，讓 setTimeout 的 fallback 邏輯處理
+          }
+        } else {
+          // 記錄收到的其他消息（用於調試）
+          if (msg?.name) {
+            console.log('📨 Received message from Flutter (not user_id):', msg.name, msg)
+          }
         }
       } catch (e) {
         console.warn('Error parsing user_id message:', e, event)
       }
     }
     
-    // 設置監聽器
-    if (window.flutterObject?.addEventListener) {
-      window.flutterObject.addEventListener('message', handleUserIdMessage)
-    } else {
-      window.addEventListener('message', handleUserIdMessage)
+    // 嘗試使用 Promise 方式（如果支持）
+    const tryPromiseMethod = async () => {
+      try {
+        if (window.flutterObject?.postMessage && typeof window.flutterObject.postMessage === 'function') {
+          // 檢查是否支持 Promise（某些實現可能支持）
+          const result = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Timeout waiting for Flutter response'))
+            }, 1000)
+            
+            const handler = (event) => {
+              clearTimeout(timeout)
+              resolve(event)
+            }
+            
+            if (window.flutterObject?.addEventListener) {
+              window.flutterObject.addEventListener('message', handler)
+            } else {
+              window.addEventListener('message', handler)
+            }
+            
+            window.flutterObject.postMessage(JSON.stringify({ name: 'get_user_id' }))
+          })
+          
+          handleUserIdMessage(result)
+          return true
+        }
+      } catch (e) {
+        console.log('Promise method not supported, using event listener:', e)
+      }
+      return false
     }
     
-    // 請求 user_id
-    requestUserId()
+    // 等待 flutterObject 可用
+    const setupListener = () => {
+      if (!window.flutterObject) {
+        console.log('⏳ Waiting for flutterObject to be available...')
+        setTimeout(setupListener, 100)
+        return
+      }
+      
+      console.log('🔍 flutterObject available:', {
+        postMessage: typeof window.flutterObject.postMessage,
+        addEventListener: typeof window.flutterObject.addEventListener,
+        removeEventListener: typeof window.flutterObject.removeEventListener,
+        onmessage: typeof window.flutterObject.onmessage,
+        keys: Object.keys(window.flutterObject)
+      })
+      
+      // 設置監聽器（多種方式）
+      if (window.flutterObject?.addEventListener) {
+        console.log('📡 Setting up flutterObject message listener')
+        window.flutterObject.addEventListener('message', handleUserIdMessage)
+      } else {
+        console.log('📡 Setting up window message listener')
+        window.addEventListener('message', handleUserIdMessage)
+      }
+      
+      // 也嘗試監聽 flutterObject 的其他可能事件
+      if (window.flutterObject.onmessage !== undefined) {
+        console.log('📡 Using flutterObject.onmessage')
+        const originalOnMessage = window.flutterObject.onmessage
+        window.flutterObject.onmessage = (event) => {
+          console.log('📨 flutterObject.onmessage called:', event)
+          handleUserIdMessage(event)
+          if (originalOnMessage) originalOnMessage(event)
+        }
+      }
+      
+      // 請求 user_id（延遲一點確保監聽器已設置）
+      setTimeout(() => {
+        requestUserId()
+      }, 100)
+    }
+    
+    // 立即嘗試設置，如果不行則等待
+    if (window.flutterObject) {
+      setupListener()
+    } else {
+      // 等待 DOM 和 flutterObject 準備好
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupListener)
+      } else {
+        setupListener()
+      }
+    }
     
     // 如果 1.5 秒後還沒收到，嘗試從 localStorage 讀取（作為 fallback）
     setTimeout(() => {
@@ -188,7 +281,7 @@ async function getUserIdFromFlutter() {
         localStorage.setItem('userId', DEFAULT_TEST_USER_ID)
       } catch (e) {}
       doResolve(DEFAULT_TEST_USER_ID)
-    }, 150)
+    }, 1500)
   })
 }
 

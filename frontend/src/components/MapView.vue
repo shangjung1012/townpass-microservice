@@ -540,10 +540,13 @@ async function getUserIdFromFlutter() {
     const requestUserId = () => {
       try {
         if (window.flutterObject?.postMessage) {
+          console.log('📤 Requesting user_id from Flutter...')
           window.flutterObject.postMessage(JSON.stringify({ name: 'get_user_id' }))
+        } else {
+          console.warn('⚠️ window.flutterObject.postMessage is not available')
         }
       } catch (e) {
-        console.warn('Failed to request user_id from Flutter', e)
+        console.warn('❌ Failed to request user_id from Flutter', e)
       }
     }
     
@@ -564,15 +567,9 @@ async function getUserIdFromFlutter() {
           msg = event
         }
         
-        // 檢查是否是 user_id 消息
-        if (msg?.name === 'user_id' && msg?.data?.user_id) {
-          const userId = msg.data.user_id
-          console.log('✅ Received user_id from Flutter:', userId)
-          
-          // 保存到 localStorage
-          try {
-            localStorage.setItem('userId', userId)
-          } catch (e) {}
+        // 檢查是否是 user_id 消息（即使 user_id 為空也要處理）
+        if (msg?.name === 'user_id' && msg?.data !== undefined) {
+          const userId = msg.data?.user_id ?? ''
           
           // 清理監聽器
           if (typeof window !== 'undefined') {
@@ -582,7 +579,23 @@ async function getUserIdFromFlutter() {
             }
           }
           
-          doResolve(userId)
+          if (userId && userId.length > 0) {
+            console.log('✅ Received user_id from Flutter:', userId)
+            // 保存到 localStorage
+            try {
+              localStorage.setItem('userId', userId)
+            } catch (e) {}
+            doResolve(userId)
+          } else {
+            console.warn('⚠️ Received empty user_id from Flutter, will fallback to localStorage')
+            // 即使收到空字符串，也清理監聽器並讓 fallback 邏輯處理
+            // 不立即 resolve，讓 setTimeout 的 fallback 邏輯處理
+          }
+        } else {
+          // 記錄收到的其他消息（用於調試）
+          if (msg?.name) {
+            console.log('📨 Received message from Flutter (not user_id):', msg.name, msg)
+          }
         }
       } catch (e) {
         console.warn('Error parsing user_id message:', e, event)
@@ -620,7 +633,7 @@ async function getUserIdFromFlutter() {
         localStorage.setItem('userId', DEFAULT_TEST_USER_ID)
       } catch (e) {}
       doResolve(DEFAULT_TEST_USER_ID)
-    }, 150)
+    }, 1500)
   })
 }
 

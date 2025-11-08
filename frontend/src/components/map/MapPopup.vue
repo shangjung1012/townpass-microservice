@@ -69,10 +69,13 @@ async function getUserIdFromFlutter() {
     const requestUserId = () => {
       try {
         if (window.flutterObject?.postMessage) {
+          console.log('📤 Requesting user_id from Flutter...')
           window.flutterObject.postMessage(JSON.stringify({ name: 'get_user_id' }))
+        } else {
+          console.warn('⚠️ window.flutterObject.postMessage is not available')
         }
       } catch (e) {
-        console.warn('Failed to request user_id from Flutter', e)
+        console.warn('❌ Failed to request user_id from Flutter', e)
       }
     }
     
@@ -91,11 +94,9 @@ async function getUserIdFromFlutter() {
           msg = event
         }
         
-        if (msg?.name === 'user_id' && msg?.data?.user_id) {
-          const id = msg.data.user_id
-          try {
-            localStorage.setItem('userId', id)
-          } catch (e) {}
+        // 檢查是否是 user_id 消息（即使 user_id 為空也要處理）
+        if (msg?.name === 'user_id' && msg?.data !== undefined) {
+          const id = msg.data?.user_id ?? ''
           
           if (typeof window !== 'undefined') {
             window.removeEventListener('message', handleUserIdMessage)
@@ -104,7 +105,22 @@ async function getUserIdFromFlutter() {
             }
           }
           
-          doResolve(id)
+          if (id && id.length > 0) {
+            console.log('✅ Received user_id from Flutter:', id)
+            try {
+              localStorage.setItem('userId', id)
+            } catch (e) {}
+            doResolve(id)
+          } else {
+            console.warn('⚠️ Received empty user_id from Flutter, will fallback to localStorage')
+            // 即使收到空字符串，也清理監聽器並讓 fallback 邏輯處理
+            // 不立即 resolve，讓 setTimeout 的 fallback 邏輯處理
+          }
+        } else {
+          // 記錄收到的其他消息（用於調試）
+          if (msg?.name) {
+            console.log('📨 Received message from Flutter (not user_id):', msg.name, msg)
+          }
         }
       } catch (e) {
         console.warn('Error parsing user_id message:', e, event)

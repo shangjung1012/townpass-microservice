@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
@@ -64,12 +65,34 @@ class GetUserIdWebMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required onReply,
   }) async {
-    final account = Get.find<AccountService>().account;
-    // Account.id 是 UUID 字符串，直接返回
-    final String userId = account?.id ?? '';
-    onReply?.call(replyWebMessage(
-      data: {'user_id': userId},
-    ));
+    try {
+      final account = Get.find<AccountService>().account;
+      // Account.id 是 UUID 字符串，直接返回
+      final String? userId = account?.id;
+      
+      if (userId == null || userId.isEmpty) {
+        debugPrint('⚠️ GetUserIdWebMessageHandler: account is null or id is empty');
+        debugPrint('   account: $account');
+        debugPrint('   account?.id: ${account?.id}');
+      } else {
+        debugPrint('✅ GetUserIdWebMessageHandler: sending user_id: $userId');
+      }
+      
+      final reply = replyWebMessage(
+        data: {'user_id': userId ?? ''},
+      );
+      debugPrint('📤 GetUserIdWebMessageHandler: sending reply: ${reply.data}');
+      debugPrint('   Reply type: ${reply.type}');
+      onReply?.call(reply);
+      debugPrint('✅ GetUserIdWebMessageHandler: reply sent');
+    } catch (e, stackTrace) {
+      debugPrint('❌ GetUserIdWebMessageHandler error: $e');
+      debugPrint('   Stack trace: $stackTrace');
+      // 即使出錯也發送回復，避免前端一直等待
+      onReply?.call(replyWebMessage(
+        data: {'user_id': ''},
+      ));
+    }
   }
 }
 
