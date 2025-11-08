@@ -14,27 +14,30 @@ function select(tab) {
 </script>
 
 <template>
-  <nav class="flex border-b border-gray-200 bg-white">
+  <nav class="relative flex border-b border-gray-200 bg-white" style="z-index: 100; position: relative;">
     <!-- 地圖 -->
     <button
       type="button"
-      class="flex-1 py-3 text-center text-base"
+      class="relative flex-1 py-3 text-center text-base cursor-pointer"
+      style="z-index: 101; position: relative;"
       :class="props.active === 'map' ? 'text-blue-900 font-semibold border-b-2 border-blue-900' : 'text-gray-400'"
-      @click="select('map')"
+      @click.stop="select('map')"
     >地圖</button>
-    <!-- 公告（與收藏交換位置） -->
+    <!-- 公告 -->
     <button
       type="button"
-      class="flex-1 py-3 text-center text-base"
+      class="relative flex-1 py-3 text-center text-base cursor-pointer"
+      style="z-index: 101; position: relative;"
       :class="props.active === 'announcement' ? 'text-blue-900 font-semibold border-b-2 border-blue-900' : 'text-gray-400'"
-      @click="select('announcement')"
+      @click.stop="select('announcement')"
     >公告</button>
     <!-- 收藏 -->
     <button
       type="button"
-      class="flex-1 py-3 text-center text-base"
+      class="relative flex-1 py-3 text-center text-base cursor-pointer"
+      style="z-index: 101; position: relative;"
       :class="props.active === 'recommend' ? 'text-blue-900 font-semibold border-b-2 border-blue-900' : 'text-gray-400'"
-      @click="select('recommend')"
+      @click.stop="select('recommend')"
     >收藏</button>
   </nav>
 </template>

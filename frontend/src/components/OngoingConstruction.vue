@@ -1,0 +1,104 @@
+<script setup>
+import { defineProps } from 'vue'
+
+const props = defineProps({
+  notices: {
+    type: Array,
+    required: true,
+    default: () => []
+  },
+  loading: {
+    type: Boolean,
+    default: false
+  },
+  error: {
+    type: String,
+    default: ''
+  },
+  hasUpcoming: {
+    type: Boolean,
+    default: false
+  }
+})
+
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-TW')
+  } catch {
+    return dateStr
+  }
+}
+</script>
+
+<template>
+  <div>
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-gray-800">進行中的施工</h2>
+      <span class="text-sm text-gray-500">共 {{ notices.length }} 則</span>
+    </div>
+
+    <div v-if="loading" class="text-center py-12 text-gray-500">
+      載入中...
+    </div>
+
+    <div v-else-if="error" class="text-center py-12 text-red-500">
+      載入失敗：{{ error }}
+    </div>
+
+    <div v-else-if="notices.length === 0 && !hasUpcoming" class="text-center py-12 text-gray-500">
+      目前沒有施工公告
+    </div>
+
+    <ul v-else-if="notices.length > 0" class="space-y-3">
+      <li
+        v-for="notice in notices"
+        :key="notice.id"
+        class="rounded-lg border border-blue-200 bg-blue-50 shadow-sm p-4"
+      >
+        <div class="flex items-start gap-3">
+          <!-- 圖示 -->
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+          </div>
+
+          <!-- 內容 -->
+          <div class="flex-1">
+            <h3 class="text-sm font-semibold text-gray-800">{{ notice.name }}</h3>
+            <p v-if="notice.road" class="mt-1 text-xs text-gray-600">{{ notice.road }}</p>
+            <p v-if="notice.type" class="mt-0.5 text-xs text-gray-500">類型：{{ notice.type }}</p>
+            <p v-if="notice.unit" class="mt-0.5 text-xs text-gray-500">單位：{{ notice.unit }}</p>
+            
+            <div v-if="notice.start_date || notice.end_date" class="mt-2 flex items-center gap-2 text-xs text-blue-700">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span v-if="notice.start_date">{{ formatDate(notice.start_date) }}</span>
+              <span v-if="notice.start_date && notice.end_date">至</span>
+              <span v-if="notice.end_date">{{ formatDate(notice.end_date) }}</span>
+            </div>
+            
+            <a 
+              v-if="notice.url" 
+              :href="notice.url" 
+              target="_blank"
+              class="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              查看詳細資訊 →
+            </a>
+          </div>
+        </div>
+      </li>
+    </ul>
+  </div>
+</template>
+
+<style scoped>
+</style>
+

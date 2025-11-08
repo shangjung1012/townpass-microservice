@@ -55,7 +55,15 @@ const NEARBY_RADIUS_M = 1000
 function handleTabSelect(tab) {
   if (tab === 'recommend') {
     router.push('/')
+    return
   }
+  
+  if (tab === 'announcement') {
+    router.push('/announcement')
+    return
+  }
+  
+  // tab === 'map' 時不需要做任何事，因為已經在地圖頁面
 }
 
 function computeBounds(geo) {
@@ -959,7 +967,7 @@ onBeforeUnmount(() => {
           <div ref="mapEl" class="h-full w-full rounded-2xl border border-gray-200" />
 
           <!-- 圓形按鈕群組 - 覆蓋在地圖右上角 -->
-          <div class="pointer-events-none absolute inset-0 p-3">
+          <div class="pointer-events-none absolute top-0 right-0 bottom-0 left-0 p-3" style="z-index: 10;">
             <div class="pointer-events-auto flex flex-col gap-2 ml-auto w-fit" style="margin-top: 120px;">
               <!-- 定位按鈕 -->
               <button

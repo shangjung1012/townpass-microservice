@@ -39,3 +39,6 @@ export const getConstructionData = () =>
 
 export const updateConstructionData = () =>
   fetch(`${BASE}/api/construction/update`).then(r=>r.json())
+
+export const getConstructionNotices = (skip = 0, limit = 100) =>
+  fetch(`${BASE}/api/construction/notices?skip=${skip}&limit=${limit}`).then(r=>r.json())
