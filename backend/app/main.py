@@ -200,10 +200,10 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error in check_and_notify: {e}", exc_info=True)
     
-    # 使用 IntervalTrigger 每 30 秒執行一次
+    # 使用 IntervalTrigger 每 5 秒執行一次
     scheduler.add_job(
         check_and_notify_sync,
-        trigger=IntervalTrigger(seconds=30),
+        trigger=IntervalTrigger(seconds=5),
         id="construction_notification_check",
         name="Check and notify construction alerts",
         replace_existing=True
