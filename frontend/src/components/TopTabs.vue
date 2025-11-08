@@ -34,7 +34,7 @@ function handleClick(tab, event) {
       type="button"
       class="relative flex-1 py-3 text-center text-base cursor-pointer tab-button"
       style="z-index: 101; position: relative;"
-      :class="props.active === 'map' ? 'text-blue-900 font-semibold border-b-2 border-blue-900' : 'text-gray-400'"
+  :class="props.active === 'map' ? 'text-[#5AB4C5] font-semibold border-b-2 border-[#5AB4C5]' : 'text-gray-400'"
       @click="handleClick('map', $event)"
       @touchstart="handleTouchStart('map', $event)"
     >地圖</button>
@@ -43,7 +43,7 @@ function handleClick(tab, event) {
       type="button"
       class="relative flex-1 py-3 text-center text-base cursor-pointer tab-button"
       style="z-index: 101; position: relative;"
-      :class="props.active === 'announcement' ? 'text-blue-900 font-semibold border-b-2 border-blue-900' : 'text-gray-400'"
+  :class="props.active === 'announcement' ? 'text-[#5AB4C5] font-semibold border-b-2 border-[#5AB4C5]' : 'text-gray-400'"
       @click="handleClick('announcement', $event)"
       @touchstart="handleTouchStart('announcement', $event)"
     >公告</button>
@@ -52,7 +52,7 @@ function handleClick(tab, event) {
       type="button"
       class="relative flex-1 py-3 text-center text-base cursor-pointer tab-button"
       style="z-index: 101; position: relative;"
-      :class="props.active === 'recommend' ? 'text-blue-900 font-semibold border-b-2 border-blue-900' : 'text-gray-400'"
+  :class="props.active === 'recommend' ? 'text-[#5AB4C5] font-semibold border-b-2 border-[#5AB4C5]' : 'text-gray-400'"
       @click="handleClick('recommend', $event)"
       @touchstart="handleTouchStart('recommend', $event)"
     >收藏</button>
@@ -61,7 +61,7 @@ function handleClick(tab, event) {
       type="button"
       class="relative flex-1 py-3 text-center text-base cursor-pointer tab-button"
       style="z-index: 101; position: relative;"
-      :class="props.active === 'watch' ? 'text-blue-900 font-semibold border-b-2 border-blue-900' : 'text-gray-400'"
+  :class="props.active === 'watch' ? 'text-[#5AB4C5] font-semibold border-b-2 border-[#5AB4C5]' : 'text-gray-400'"
       @click="handleClick('watch', $event)"
       @touchstart="handleTouchStart('watch', $event)"
     >偵測</button>
