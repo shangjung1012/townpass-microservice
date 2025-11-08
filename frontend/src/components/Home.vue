@@ -119,13 +119,20 @@ function toggleNotification(placeId) {
   saveNotificationSettings()
   const place = savedPlaces.value.find(p => p.id === placeId)
   const enabled = notificationEnabled.value[placeId]
-  // 發送訊息給 Flutter（若存在），以顯示手機通知並同步訂閱列表
+  // 發送 watch/unwatch 訊息給 Flutter，啟用或停止監控附近施工地點
   try {
-    const payload = {
-      name: 'notify',
+    const payload = enabled ? {
+      name: 'watch',
       data: {
-        title: 'TownPass',
-        content: enabled ? `已訂閱${place?.name ?? ''}` : `已取消訂閱${place?.name ?? ''}`,
+        id: placeId,
+        name: place?.name || '未命名地點',
+        lon: place?.lon,
+        lat: place?.lat,
+      },
+    } : {
+      name: 'unwatch',
+      data: {
+        id: placeId,
       },
     }
     if (typeof window !== 'undefined' && window.flutterObject?.postMessage) {

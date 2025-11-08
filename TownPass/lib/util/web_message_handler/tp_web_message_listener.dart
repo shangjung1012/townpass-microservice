@@ -14,6 +14,8 @@ abstract class TPWebMessageListener {
         OpenLinkMessageHandler(),
         NotifyMessageHandler(),
         QRCodeScanMessageHandler(),
+        WatchMessageHandler(),
+        UnwatchMessageHandler(),
       ];
 
   static WebMessageListener webMessageListener() {
