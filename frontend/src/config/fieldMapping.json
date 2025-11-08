@@ -15,10 +15,8 @@
     "旅館": "hotel"
   },
   "construction": {
-    "場地名稱": "AP_NAME",
-    "用途": "PURP",
-    "行政區": "行政區",
-    "地址": "地址"
+    "位置": "DIGADD",
+    "用途": "PURP"
   },
   "narrow_street": {
     "巷弄名稱": "alley_name",
