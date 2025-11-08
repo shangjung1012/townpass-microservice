@@ -85,6 +85,8 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         from .models import ConstructionNotice
+        from .services.notice_contruction import update_construction_notices, update_missing_geometries
+        
         notice_count = db.query(ConstructionNotice).count()
         if notice_count == 0:
             logger.info("No construction notices found in database. Running initial update...")
@@ -96,6 +98,25 @@ async def lifespan(app: FastAPI):
                 logger.warning("Application will continue to start, but construction notices may be unavailable")
         else:
             logger.info(f"Found {notice_count} construction notices in database. Skipping initial update.")
+            
+            # 檢查是否有缺少 geometry 的記錄
+            from sqlalchemy import or_
+            all_notices = db.query(ConstructionNotice).all()
+            notices_without_geometry = sum(
+                1 for n in all_notices 
+                if n.geometry is None or n.geometry == {} or (isinstance(n.geometry, dict) and len(n.geometry) == 0)
+            )
+            
+            if notices_without_geometry > 0:
+                logger.info(f"發現 {notices_without_geometry} 筆缺少 geometry 的記錄，開始更新...")
+                geometry_result = update_missing_geometries(db)
+                if geometry_result.get("status") == "success":
+                    logger.info(f"Geometry 更新完成: 成功更新 {geometry_result.get('updated_count', 0)} 筆，失敗 {geometry_result.get('failed_count', 0)} 筆")
+                else:
+                    logger.error(f"Geometry 更新失敗: {geometry_result.get('message', 'Unknown error')}")
+                    logger.warning("Application will continue to start, but some notices may lack geometry")
+            else:
+                logger.info("所有施工通知記錄都已包含 geometry 資料")
     except Exception as e:
         logger.error(f"Failed to check/update construction notices: {e}", exc_info=True)
         logger.warning("Application will continue to start, but construction notices may be unavailable")

@@ -401,6 +401,99 @@ def save_construction_notices(session: Session, notices: List[Dict[str, Any]], c
         raise
 
 
+def update_missing_geometries(session: Session) -> Dict[str, Any]:
+    """
+    更新缺少 geometry 的施工通知記錄
+    
+    Args:
+        session: 資料庫 session
+    
+    Returns:
+        包含更新結果的字典
+    """
+    try:
+        # 查詢所有缺少 geometry 的記錄
+        # 使用 is_(None) 檢查 NULL，並使用 JSON 函數檢查是否為空物件
+        from sqlalchemy import or_
+        notices_without_geometry = session.query(ConstructionNotice).filter(
+            or_(
+                ConstructionNotice.geometry.is_(None),
+                ConstructionNotice.geometry == None  # 兼容性檢查
+            )
+        ).all()
+        
+        # 過濾掉空字典（PostgreSQL JSON 欄位可能存儲為 {}）
+        notices_without_geometry = [
+            n for n in notices_without_geometry 
+            if n.geometry is None or n.geometry == {} or (isinstance(n.geometry, dict) and len(n.geometry) == 0)
+        ]
+        
+        if not notices_without_geometry:
+            logger.info("所有施工通知記錄都已包含 geometry 資料")
+            return {
+                "status": "success",
+                "message": "All notices already have geometry",
+                "updated_count": 0
+            }
+        
+        logger.info(f"發現 {len(notices_without_geometry)} 筆缺少 geometry 的記錄，開始更新...")
+        
+        updated_count = 0
+        failed_count = 0
+        total = len(notices_without_geometry)
+        
+        for idx, notice in enumerate(notices_without_geometry, 1):
+            # 每處理 10 筆顯示一次進度
+            if idx % 10 == 0 or idx == total:
+                logger.info(f"更新 geometry 進度: {idx}/{total}")
+            
+            # 從 URL 提取 caseid
+            caseid = extract_caseid_from_url(notice.url) if notice.url else None
+            
+            if not caseid:
+                logger.debug(f"無法從 URL 提取 caseid: {notice.url}")
+                failed_count += 1
+                continue
+            
+            # 獲取座標資料
+            coord_data = fetch_coordinates_for_case(caseid)
+            if not coord_data or not coord_data.get('XYSTRING'):
+                logger.debug(f"無法獲取 caseid {caseid} 的座標資料")
+                failed_count += 1
+                continue
+            
+            # 轉換為 GeoJSON
+            geometry = parse_xystring_to_geojson(coord_data['XYSTRING'])
+            if not geometry:
+                logger.debug(f"無法解析 caseid {caseid} 的座標字串")
+                failed_count += 1
+                continue
+            
+            # 更新記錄
+            notice.geometry = geometry
+            session.add(notice)
+            updated_count += 1
+        
+        session.commit()
+        logger.info(f"成功更新 {updated_count} 筆記錄的 geometry，{failed_count} 筆失敗")
+        
+        return {
+            "status": "success",
+            "message": f"Updated {updated_count} notices with geometry",
+            "updated_count": updated_count,
+            "failed_count": failed_count,
+            "total": total
+        }
+        
+    except Exception as e:
+        session.rollback()
+        logger.error(f"更新 geometry 時發生錯誤: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 def update_construction_notices(session: Session, max_pages: int = None, clear_existing: bool = True) -> Dict[str, Any]:
     """
     更新施工通知資料（爬取並保存）
