@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
 import 'package:town_pass/service/device_service.dart';
@@ -10,6 +11,7 @@ import 'package:town_pass/service/package_service.dart';
 import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
 import 'package:town_pass/service/background_notification_service.dart';
+import 'package:town_pass/service/construction_alert_service.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_route.dart';
 
@@ -19,6 +21,7 @@ const _transparentStatusBar = SystemUiOverlayStyle(
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   // FlutterNativeSplash.preserve(
   //   widgetsBinding: WidgetsFlutterBinding.ensureInitialized(),
   // );
@@ -40,6 +43,7 @@ Future<void> initServices() async {
   await Get.putAsync<SharedPreferencesService>(() async => await SharedPreferencesService().init());
   await Get.putAsync<GeoLocatorService>(() async => await GeoLocatorService().init());
   await Get.putAsync<NotificationService>(() async => await NotificationService().init());
+  await Get.putAsync<ConstructionAlertService>(() async => await ConstructionAlertService().init());
 
   Get.put<SubscriptionService>(SubscriptionService());
 }

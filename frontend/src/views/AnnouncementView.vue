@@ -15,6 +15,8 @@ function selectTab(tab) {
     router.push('/')
   } else if (tab === 'announcement') {
     currentTab.value = 'announcement'
+  } else if (tab === 'watch') {
+    router.push('/watch')
   }
 }
 

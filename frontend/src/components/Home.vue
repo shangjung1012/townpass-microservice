@@ -13,6 +13,7 @@ const notificationEnabled = ref({}) // { [placeId]: boolean }
 const selectedCategory = ref({}) // { [placeId]: 'nearby' | 'upcoming' }
 const FAVORITES_STORAGE_KEY = 'mapFavorites'
 const NOTIFICATION_STORAGE_KEY = 'placeNotifications'
+const ROAD_WATCH_KEY = 'roadWatchEnabled'
 const constructionNotices = ref([]) // 施工公告資料
 const loadingNotices = ref(false)
 
@@ -43,6 +44,11 @@ function selectTab(tab) {
 
   if (tab === 'announcement') {
     router.push('/announcement')
+    return
+  }
+
+  if (tab === 'watch') {
+    router.push('/watch')
     return
   }
 
@@ -134,9 +140,10 @@ function toggleNotification(placeId) {
   
   // 檢查是否有任何收藏啟用通知
   const anyEnabled = Object.values(notificationEnabled.value).some(v => v === true)
+  const detectionEnabled = isRoadWatchEnabled()
   
   try {
-    if (anyEnabled) {
+    if (anyEnabled || detectionEnabled) {
       // 有至少一個收藏啟用通知 -> 啟動背景任務
       const watchPayload = { name: 'watch', data: null }
       if (typeof window !== 'undefined' && window.flutterObject?.postMessage) {
@@ -158,6 +165,15 @@ function toggleNotification(placeId) {
   // 如果剛開啟，立即檢查一次（前端即時通知）
   if (nowEnabled) {
     checkAndNotifyPlace(placeId, { immediate: true })
+  }
+}
+
+function isRoadWatchEnabled() {
+  if (typeof window === 'undefined') return false
+  try {
+    return localStorage.getItem(ROAD_WATCH_KEY) === 'true'
+  } catch (_) {
+    return false
   }
 }
 

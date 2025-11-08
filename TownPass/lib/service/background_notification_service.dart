@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show sin, cos, sqrt, asin;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:http/http.dart' as http;
+import 'package:town_pass/util/geo_distance.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'notification_service.dart';
 
 /// 背景通知服務（使用 Android AlarmManager 實現週期檢查）
 /// 可在 App 關閉時持續運作
 class BackgroundNotificationService {
   static const int _alarmId = 0;
-  static const String _baseUrl = 'https://townpass.chencx.cc';
+  static final String _baseUrl =
+      dotenv.env['API_BASE'] ?? 'https://townpass.chencx.cc';
 
   /// 初始化服務
   static Future<void> initialize() async {
@@ -165,7 +167,12 @@ class BackgroundNotificationService {
         if (conLng == null || conLat == null) continue;
         
         // 計算距離（簡單的經緯度距離）
-        final distance = _calculateDistance(lat, lng, conLat.toDouble(), conLng.toDouble());
+        final distance = GeoDistance.haversineKm(
+          lat,
+          lng,
+          conLat.toDouble(),
+          conLng.toDouble(),
+        );
         if (distance <= 1.0) {
           count++;
         }
@@ -178,25 +185,4 @@ class BackgroundNotificationService {
     }
   }
 
-  /// 計算兩點之間的距離（公里）
-  static double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
-    const double earthRadius = 6371.0; // 地球半徑（公里）
-    
-    final dLat = _toRadians(lat2 - lat1);
-    final dLng = _toRadians(lng2 - lng1);
-    final rLat1 = _toRadians(lat1);
-    final rLat2 = _toRadians(lat2);
-    
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(rLat1) * cos(rLat2) *
-        sin(dLng / 2) * sin(dLng / 2);
-    
-    final c = 2 * asin(sqrt(a));
-    
-    return earthRadius * c;
-  }
-
-  static double _toRadians(double degrees) {
-    return degrees * 3.141592653589793 / 180.0;
-  }
 }
