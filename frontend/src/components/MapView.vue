@@ -16,7 +16,9 @@ let flutterMsgHandler = null
 
 // ====== UI 狀態 ======
 const searchText = ref('')
-const selectedDistrict = ref('')   
+// 行政區篩選已移除，改用資料集顯示切換
+const selectedDistrict = ref('')   // 保留但不再顯示 UI（若未來需要可再啟用）
+const datasetFilter = ref('all')   // 'all' | 'attraction' | 'construction'
 const showNearby = ref(false)
 const nearbyList = ref([])
 const lastSearchLonLat = ref(null)  // { lon, lat }：最近一次「搜尋中心」
@@ -24,12 +26,9 @@ const userLonLat = ref(null)        // { lon, lat }：最新「GPS 定位」
 const originMode = ref('gps')       // 'gps' | 'search'
 const showSettingsPanel = ref(false) // 設定齒輪彈窗開關
 
-// ====== 台北市行政區（固定清單）=====
-const TPE_DISTRICTS = [
-  '中正區','大同區','中山區','松山區','大安區','萬華區',
-  '信義區','士林區','北投區','內湖區','南港區','文山區'
-]
-const districtOptions = ref([...TPE_DISTRICTS])
+// （行政區清單已不再顯示）
+const TPE_DISTRICTS = []
+const districtOptions = ref([])
 
 // ====== Mapbox 搜尋邊界限定「台北市」=====
 const TPE_CENTER = [121.5654, 25.0330]
@@ -366,16 +365,11 @@ function clearSearchMarker() {
 }
 
 // ===== 行政區篩選 =====
-function applyDistrictFilter() {
+// 資料集顯示切換（全部/景點/施工地點）
+function applyDatasetFilter() {
   for (const ds of datasets.value) {
-    const cache = datasetCache.get(ds.id)
-    if (!cache) continue
-    const filter = selectedDistrict.value
-      ? ['==', ['get', '行政區'], selectedDistrict.value]
-      : null
-    for (const lid of cache.layerIds) {
-      if (map.getLayer(lid)) map.setFilter(lid, filter)
-    }
+    ds.visible = (datasetFilter.value === 'all') || (datasetFilter.value === ds.id)
+    setDatasetVisibility(ds, ds.visible)
   }
   computeNearbyForCurrentCenter()
 }
@@ -411,10 +405,19 @@ function collectNearbyPoints(lon, lat, options = {}) {
       const [flon, flat] = g.coordinates
       const d = distM(lon, lat, flon, flat)
       if (d <= maxDistance) {
+        // 名稱與內容格式：景點用 館所名稱+地址，施工用 AP_NAME + PURP
+        let name = f?.properties?.['館所名稱'] || f?.properties?.['場地名稱'] || '(未命名)'
+        let addr = f?.properties?.['地址'] || ''
+        if (ds.id === 'construction') {
+          const apName = f?.properties?.['AP_NAME'] || f?.properties?.['場地名稱'] || '(未命名)'
+          const purp = f?.properties?.['PURP'] || f?.properties?.['地址'] || ''
+          name = apName
+          addr = purp
+        }
         results.push({
           dsid: ds.id,
-          name: f?.properties?.['館所名稱'] || f?.properties?.['場地名稱'] || '(未命名)',
-          addr: f?.properties?.['地址'] || '',
+          name,
+          addr,
           dist: Math.round(d),
           lon: flon,
           lat: flat,
@@ -516,7 +519,7 @@ async function geocodePlaceInTaipei(q) {
 
 // ===== 搜尋與清除 =====
 async function goSearch() {
-  applyDistrictFilter() 
+  // 行政區篩選已移除；改為資料集顯示選單（不需於搜尋時套用）
 
   const kw = (searchText.value || '').trim()
   if (!kw) return
@@ -755,20 +758,21 @@ onBeforeUnmount(() => {
                   </svg>
                 </button>
 
-                <!-- 下拉選單 -->
+                <!-- 設定選單：資料集顯示切換 -->
                 <div
                   v-if="showSettingsPanel"
                   class="absolute right-0 top-full mt-2 w-48 rounded-lg border border-gray-200 bg-white shadow-lg"
                 >
                   <div class="p-3">
-                    <label class="mb-2 block text-xs font-medium text-gray-600">行政區篩選</label>
+                    <label class="mb-2 block text-xs font-medium text-gray-600">顯示資料集</label>
                     <select
-                      v-model="selectedDistrict"
-                      @change="applyDistrictFilter"
+                      v-model="datasetFilter"
+                      @change="applyDatasetFilter"
                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
                     >
-                      <option value="">全部</option>
-                      <option v-for="d in districtOptions" :key="d" :value="d">{{ d }}</option>
+                      <option value="all">全部</option>
+                      <option value="attraction">景點</option>
+                      <option value="construction">施工地點</option>
                     </select>
                   </div>
                 </div>
