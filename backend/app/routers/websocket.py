@@ -94,6 +94,8 @@ def check_construction_near_favorites(user_id: int, db: Session) -> list[dict]:
     logger.debug(f"User {user_id}: Found {len(favorites)} favorites with notifications enabled, {len(construction_notices)} ongoing constructions")
     
     alerts = []
+    # 使用集合來追蹤已經添加的 (favorite_id, construction_id) 組合，避免重複
+    added_combinations = set()
     
     for favorite in favorites:
         favorite_coords = get_favorite_coordinates(favorite)
@@ -107,6 +109,11 @@ def check_construction_near_favorites(user_id: int, db: Session) -> list[dict]:
             if not construction.geometry:
                 continue
             
+            # 檢查是否已經添加過這個組合
+            combination_key = (favorite.id, construction.id)
+            if combination_key in added_combinations:
+                continue
+            
             # 從 geometry 中提取座標
             geometry = construction.geometry
             if isinstance(geometry, dict) and geometry.get('type') == 'Point':
@@ -116,32 +123,31 @@ def check_construction_near_favorites(user_id: int, db: Session) -> list[dict]:
                     con_lat = float(coords[1])
                     
                     # 檢查是否在收藏地點的閾值範圍內
+                    # 對於每個收藏地點的多個座標點，取最短距離
+                    min_distance = None
                     for fav_lat, fav_lon in favorite_coords:
                         distance = haversine_distance_meters(fav_lat, fav_lon, con_lat, con_lon)
-                        
                         if distance <= threshold_meters:
-                            alerts.append({
-                                'favorite_id': favorite.id,
-                                'favorite_name': favorite.name,
-                                'favorite_type': favorite.type,
-                                'construction_id': construction.id,
-                                'construction_name': construction.name,
-                                'construction_road': construction.road,
-                                'construction_type': construction.type,
-                                'distance_meters': round(distance),
-                                'start_date': construction.start_date.isoformat() if construction.start_date else None,
-                                'end_date': construction.end_date.isoformat() if construction.end_date else None,
-                                'url': construction.url,
-                            })
-                            logger.info(
-                                f"User {user_id}: Found nearby construction - "
-                                f"Favorite '{favorite.name}' (id={favorite.id}) has construction "
-                                f"'{construction.name}' (id={construction.id}) at {round(distance)}m"
-                            )
-                            break  # 找到匹配就跳出內層循環
+                            if min_distance is None or distance < min_distance:
+                                min_distance = distance
+                    
+                    # 如果找到匹配的距離，添加警報
+                    if min_distance is not None:
+                        alerts.append({
+                            'favorite_name': favorite.name,
+                            'construction_name': construction.name,
+                            'construction_road': construction.road,
+                            'distance_meters': round(min_distance),
+                        })
+                        added_combinations.add(combination_key)
+                        logger.info(
+                            f"User {user_id}: Found nearby construction - "
+                            f"Favorite '{favorite.name}' (id={favorite.id}) has construction "
+                            f"'{construction.name}' (id={construction.id}) at {round(min_distance)}m"
+                        )
     
     if alerts:
-        logger.info(f"User {user_id}: Generated {len(alerts)} alerts")
+        logger.info(f"User {user_id}: Generated {len(alerts)} unique alerts")
     return alerts
 
 
