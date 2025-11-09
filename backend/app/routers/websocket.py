@@ -103,7 +103,7 @@ def check_construction_near_favorites(user_id: int, db: Session) -> list[dict]:
             logger.debug(f"User {user_id}: Favorite {favorite.id} ({favorite.name}) has no coordinates")
             continue
         
-        threshold_meters = favorite.distance_threshold or 100.0
+        threshold_meters = favorite.distance_threshold or 1000.0
         
         for construction in construction_notices:
             if not construction.geometry:

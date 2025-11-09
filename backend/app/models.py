@@ -79,7 +79,7 @@ class Favorite(Base):
     
     # 通知相關欄位
     notification_enabled = Column(Boolean, nullable=False, default=False)
-    distance_threshold = Column(Float, nullable=False, default=100.0)  # 通知距離閾值（公尺），預設 100m
+    distance_threshold = Column(Float, nullable=False, default=1000.0)  # 通知距離閾值（公尺），預設 100m
     
     # 時間戳
     added_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -86,7 +86,7 @@ class FavoriteBase(BaseModel):
     route_distance_threshold: float | None = 50.0
     recommendations: list[dict[str, Any]] | None = None
     notification_enabled: bool = False
-    distance_threshold: float = 100.0
+    distance_threshold: float = 1000.0
 
 
 class FavoriteCreate(FavoriteBase):
