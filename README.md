@@ -10,9 +10,12 @@
 - 即時推播：施工更新定期以 WebSocket 推送通知至手機，即使不打開 App 也能掌握收藏地點施工資訊
 - 未來公告：提供即將施工之預告資訊，並且依據收藏地點進行分類
 - 開車提醒：背景 GPS 偵測 + 語音播報，接近施工點自動提醒  
-
+<img src="displays/路線查詢與收藏.jpeg" width="350">
+<img src="displays/施工公告.jpeg" width="350">
+<img src="displays/個人化查看地點與通知.jpeg" width="350">
+<img src="displays/路上偵測.jpeg" width="350">
 ## Award
-- 台北城市微服務大黑客松決賽作品
+台北城市微服務大黑客松決賽作品
 
 ## Project Structure
 ```text
